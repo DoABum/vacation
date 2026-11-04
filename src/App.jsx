@@ -807,33 +807,31 @@ export default function App() {
     setTimeout(() => setToast({ msg: "", type: "success" }), 3000);
   };
 
-  const handleSubmit = async (f, sc) => {
+  const handleSubmit = (f, sc) => {
     if (!SCRIPT_URL) {
-      alert("SCRIPT_URL이 설정되지 않았습니다. Apps Script 배포 URL을 입력해주세요.");
+      alert("SCRIPT_URL이 설정되지 않았습니다.");
       return;
     }
     setSubmitting(true);
-    try {
-      const payload = {
-        form: f,
-        scores: {
-          scoreA: parseFloat(sc.scoreA.toFixed(2)),
-          scoreB: parseFloat(sc.scoreB.toFixed(2)),
-          scoreC: parseFloat(sc.scoreC.toFixed(2)),
-          scoreD: parseFloat(sc.scoreD.toFixed(2)),
-          total: parseFloat(sc.total.toFixed(2)),
-        },
-      };
-      const url = new URL(SCRIPT_URL);
-      url.searchParams.set("data", JSON.stringify(payload));
-      await fetch(url.toString(), { mode: "no-cors" });
-      showToast("제출이 완료되었습니다! 구글 시트에 저장되었습니다.", "success");
-      setPrintData({ f, sc });
-    } catch (err) {
-      showToast(`제출 실패: ${err.message}`, "error");
-    } finally {
-      setSubmitting(false);
-    }
+    const payload = {
+      form: f,
+      scores: {
+        scoreA: parseFloat(sc.scoreA.toFixed(2)),
+        scoreB: parseFloat(sc.scoreB.toFixed(2)),
+        scoreC: parseFloat(sc.scoreC.toFixed(2)),
+        scoreD: parseFloat(sc.scoreD.toFixed(2)),
+        total: parseFloat(sc.total.toFixed(2)),
+      },
+    };
+    const url = new URL(SCRIPT_URL);
+    url.searchParams.set("data", JSON.stringify(payload));
+    // Image beacon: CORS 없이 GET 전송, 항상 즉시 완료
+    const img = new Image();
+    img.src = url.toString();
+    img.onload = img.onerror = () => {};
+    showToast("제출이 완료되었습니다! 구글 시트에 저장됩니다.", "success");
+    setPrintData({ f, sc });
+    setSubmitting(false);
   };
 
   return (
