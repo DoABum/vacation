@@ -824,11 +824,9 @@ export default function App() {
           total: parseFloat(sc.total.toFixed(2)),
         },
       };
-      await fetch(SCRIPT_URL, {
-        method: "POST",
-        body: JSON.stringify(payload),
-        mode: "no-cors",
-      });
+      const url = new URL(SCRIPT_URL);
+      url.searchParams.set("data", JSON.stringify(payload));
+      await fetch(url.toString(), { mode: "no-cors" });
       showToast("제출이 완료되었습니다! 구글 시트에 저장되었습니다.", "success");
       setPrintData({ f, sc });
     } catch (err) {
