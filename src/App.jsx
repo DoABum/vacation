@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
 
 const GLOBAL_STYLE = `
   .dmf-input, .dmf-select {
@@ -46,7 +46,8 @@ const GLOBAL_STYLE = `
   }
 `;
 
-const ADMIN_PW = "misa2027";
+// Apps Script 배포 URL을 아래에 입력하세요
+const SCRIPT_URL = "";
 
 const suupOptions = [
   { label: "21시간 이상", value: 23.0 },
@@ -359,7 +360,7 @@ function RefPanel() {
 }
 
 // ── 입력 폼 ────────────────────────────────────────────────
-function FormView({ initial, onSubmit, isEdit, onCancel, onPrint }) {
+function FormView({ initial, onSubmit, isEdit, onCancel, onPrint, submitting }) {
   const [f, setF] = useState(initial || defaultForm());
   const sc = calcScores(f);
   const isDamim = f.aDamim === "damim" && f.gyokwa !== "bigyokwa";
@@ -661,11 +662,11 @@ function FormView({ initial, onSubmit, isEdit, onCancel, onPrint }) {
       {/* 버튼 */}
       <div style={{ display: "flex", gap: 12 }}>
         {isEdit && <button style={{ ...s.btn, flex: 1 }} onClick={onCancel}>취소</button>}
-        <button style={{ ...s.btnPrimary, flex: isEdit ? 2 : 1 }} onClick={() => {
+        <button style={{ ...s.btnPrimary, flex: isEdit ? 2 : 1, opacity: submitting ? 0.6 : 1 }} disabled={submitting} onClick={() => {
           if (!f.name.trim()) { alert("성함을 입력해주세요"); return; }
           onSubmit(f, sc);
         }}>
-          {isEdit ? "수정 완료" : "제출하기"}
+          {submitting ? "전송 중..." : isEdit ? "수정 완료" : "제출하기"}
         </button>
         {!isEdit && (
           <button style={{ ...s.btn, flex: 1, justifyContent: "center" }} onClick={() => {
@@ -797,71 +798,48 @@ function PrintOverlay({ f, sc, onClose }) {
 
 // ── 메인 앱 ────────────────────────────────────────────────
 export default function App() {
-  const [tab, setTab] = useState("form");
-  const [submissions, setSubmissions] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [toast, setToast] = useState("");
-  const [adminUnlocked, setAdminUnlocked] = useState(false);
-  const [pwInput, setPwInput] = useState("");
-  const [editIdx, setEditIdx] = useState(null);
+  const [toast, setToast] = useState({ msg: "", type: "success" });
+  const [submitting, setSubmitting] = useState(false);
   const [printData, setPrintData] = useState(null);
 
-  const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(""), 2500); };
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await window.storage.get("submissions", true);
-      if (res) setSubmissions(JSON.parse(res.value));
-    } catch (_) {}
-    setLoading(false);
-  }, []);
-
-  useEffect(() => { load(); }, [load]);
-
-  const save = async (data) => {
-    await window.storage.set("submissions", JSON.stringify(data), true);
-    setSubmissions(data);
+  const showToast = (msg, type = "success") => {
+    setToast({ msg, type });
+    setTimeout(() => setToast({ msg: "", type: "success" }), 3000);
   };
 
   const handleSubmit = async (f, sc) => {
-    const entry = {
-      id: Date.now(), date: new Date().toLocaleDateString("ko-KR"),
-      name: f.name, form: f,
-      총점: sc.total.toFixed(2), 학습지도: sc.scoreA.toFixed(2),
-      생활지도: sc.scoreB.toFixed(2), 전문성개발: sc.scoreC.toFixed(2), 담당업무: sc.scoreD.toFixed(2),
-    };
-    await save([...submissions, entry]);
-    showToast("제출이 완료되었습니다!");
-  };
-
-  const handleEdit = async (idx, f, sc) => {
-    const entry = {
-      ...submissions[idx], form: f, name: f.name,
-      date: new Date().toLocaleDateString("ko-KR") + " (수정)",
-      총점: sc.total.toFixed(2), 학습지도: sc.scoreA.toFixed(2),
-      생활지도: sc.scoreB.toFixed(2), 전문성개발: sc.scoreC.toFixed(2), 담당업무: sc.scoreD.toFixed(2),
-    };
-    await save(submissions.map((s, i) => i === idx ? entry : s));
-    setEditIdx(null);
-    showToast("수정이 완료되었습니다.");
-  };
-
-  const handleDelete = async (idx) => {
-    if (!window.confirm(`"${submissions[idx].name}" 선생님 데이터를 삭제할까요?`)) return;
-    await save(submissions.filter((_, i) => i !== idx));
-    showToast("삭제되었습니다.");
-  };
-
-  const exportCSV = () => {
-    if (!submissions.length) { alert("데이터가 없습니다"); return; }
-    let csv = "﻿성함,제출일,총점,학습지도,생활지도,전문성개발,담당업무\n";
-    submissions.forEach(d => {
-      csv += [d.name, d.date, d.총점, d.학습지도, d.생활지도, d.전문성개발, d.담당업무].map(v => `"${v}"`).join(",") + "\n";
-    });
-    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8;" }));
-    const a = document.createElement("a");
-    a.href = url; a.download = "다면평가_수합결과.csv"; a.click();
+    if (!SCRIPT_URL) {
+      alert("SCRIPT_URL이 설정되지 않았습니다. Apps Script 배포 URL을 입력해주세요.");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const payload = {
+        form: f,
+        scores: {
+          scoreA: parseFloat(sc.scoreA.toFixed(2)),
+          scoreB: parseFloat(sc.scoreB.toFixed(2)),
+          scoreC: parseFloat(sc.scoreC.toFixed(2)),
+          scoreD: parseFloat(sc.scoreD.toFixed(2)),
+          total: parseFloat(sc.total.toFixed(2)),
+        },
+      };
+      const res = await fetch(SCRIPT_URL, {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (data.status === "ok") {
+        showToast("제출이 완료되었습니다! 구글 시트에 저장되었습니다.", "success");
+        setPrintData({ f, sc });
+      } else {
+        throw new Error(data.message || "서버 오류");
+      }
+    } catch (err) {
+      showToast(`제출 실패: ${err.message}`, "error");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -876,91 +854,17 @@ export default function App() {
           <p style={{ fontSize: 12, color: "var(--color-text-secondary)", margin: 0 }}>2027년 2월 28일 기준 정량평가 입력 시스템</p>
         </div>
 
-        {toast && (
-          <div style={{ background: "var(--color-background-success)", color: "var(--color-text-success)", borderRadius: "var(--border-radius-md)", padding: "10px 16px", fontSize: 14, marginBottom: "1rem" }}>
-            {toast}
+        {toast.msg && (
+          <div style={{
+            background: toast.type === "error" ? "#fee2e2" : "var(--color-background-success)",
+            color: toast.type === "error" ? "#dc2626" : "var(--color-text-success)",
+            borderRadius: "var(--border-radius-md)", padding: "10px 16px", fontSize: 14, marginBottom: "1rem"
+          }}>
+            {toast.msg}
           </div>
         )}
 
-        <div style={{ display: "flex", gap: 8, marginBottom: "1.25rem", justifyContent: "center" }}>
-          <button onClick={() => { setTab("form"); setEditIdx(null); }} style={{ padding: "9px 28px", borderRadius: 8, border: "none", cursor: "pointer", fontSize: 14, fontWeight: 500, background: tab === "form" ? "#1a1a2e" : "var(--color-background-secondary)", color: tab === "form" ? "#fff" : "var(--color-text-primary)", transition: "all .15s" }}>
-            입력 폼
-          </button>
-          <button onClick={() => setTab("admin")} style={{ padding: "9px 28px", borderRadius: 8, border: "none", cursor: "pointer", fontSize: 14, fontWeight: 500, background: tab === "admin" ? "#1a1a2e" : "var(--color-background-secondary)", color: tab === "admin" ? "#fff" : "var(--color-text-primary)", transition: "all .15s", display: "flex", alignItems: "center", gap: 8 }}>
-            관리자 수합
-            {submissions.length > 0 && <span style={{ fontSize: 11, background: tab === "admin" ? "rgba(255,255,255,0.25)" : "#dde3ea", borderRadius: 10, padding: "1px 7px" }}>{submissions.length}</span>}
-          </button>
-        </div>
-
-        {tab === "form" && (
-          <FormView onSubmit={handleSubmit} onPrint={(f, sc) => setPrintData({ f, sc })} />
-        )}
-
-        {tab === "admin" && (
-          <div>
-            {!adminUnlocked ? (
-              <div style={{ ...s.card, maxWidth: 360, margin: "2rem auto" }}>
-                <div style={s.cardBody}>
-                  <div style={{ marginBottom: 16, fontSize: 14, color: "var(--color-text-secondary)" }}>관리자 비밀번호를 입력하세요</div>
-                  <input className="dmf-input" style={{ marginBottom: 12 }} type="password" value={pwInput} onChange={e => setPwInput(e.target.value)} placeholder="비밀번호"
-                    onKeyDown={e => { if (e.key === "Enter") { if (pwInput === ADMIN_PW) { setAdminUnlocked(true); setPwInput(""); } else alert("비밀번호가 맞지 않습니다"); } }} />
-                  <button style={{ ...s.btnPrimary }} onClick={() => { if (pwInput === ADMIN_PW) { setAdminUnlocked(true); setPwInput(""); } else alert("비밀번호가 맞지 않습니다"); }}>확인</button>
-                </div>
-              </div>
-            ) : editIdx !== null ? (
-              <div>
-                <p style={{ fontSize: 14, color: "var(--color-text-secondary)", marginBottom: "1rem" }}>
-                  {submissions[editIdx]?.name} 선생님 데이터 수정 중
-                </p>
-                <FormView initial={submissions[editIdx]?.form} isEdit onSubmit={(f, sc) => handleEdit(editIdx, f, sc)} onCancel={() => setEditIdx(null)} />
-              </div>
-            ) : (
-              <div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
-                  <span style={{ fontSize: 14, color: "var(--color-text-secondary)" }}>총 {submissions.length}명 제출</span>
-                  <div style={{ display: "flex", gap: 8 }}>
-                    <button style={s.btn} onClick={exportCSV}>CSV 다운로드</button>
-                    <button style={{ ...s.btn, color: "var(--color-text-danger)" }} onClick={async () => { if (window.confirm("모든 데이터를 초기화할까요?")) { await save([]); showToast("초기화 완료"); } }}>초기화</button>
-                  </div>
-                </div>
-                {loading ? (
-                  <div style={{ textAlign: "center", padding: "3rem", color: "var(--color-text-tertiary)", fontSize: 14 }}>불러오는 중...</div>
-                ) : submissions.length === 0 ? (
-                  <div style={{ textAlign: "center", padding: "3rem", color: "var(--color-text-tertiary)", fontSize: 14 }}>아직 제출된 데이터가 없습니다</div>
-                ) : (
-                  <div style={{ overflowX: "auto" }}>
-                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-                      <thead>
-                        <tr>{["성함","제출일","총점","학습","생활","전문성","업무",""].map((h, i) => (
-                          <th key={i} style={{ textAlign: "left", padding: "8px 8px", borderBottom: "0.5px solid var(--color-border-tertiary)", color: "var(--color-text-secondary)", fontWeight: 500, fontSize: 12 }}>{h}</th>
-                        ))}</tr>
-                      </thead>
-                      <tbody>
-                        {submissions.map((d, i) => (
-                          <tr key={d.id} style={{ borderBottom: "0.5px solid var(--color-border-tertiary)" }}>
-                            <td style={{ padding: "8px 8px", fontWeight: 500 }}>{d.name}</td>
-                            <td style={{ padding: "8px 8px", color: "var(--color-text-secondary)", fontSize: 11 }}>{d.date}</td>
-                            <td style={{ padding: "8px 8px", fontWeight: 500, color: "var(--color-text-info)" }}>{d.총점}</td>
-                            <td style={{ padding: "8px 8px" }}>{d.학습지도}</td>
-                            <td style={{ padding: "8px 8px" }}>{d.생활지도}</td>
-                            <td style={{ padding: "8px 8px" }}>{d.전문성개발}</td>
-                            <td style={{ padding: "8px 8px" }}>{d.담당업무}</td>
-                            <td style={{ padding: "8px 4px" }}>
-                              <div style={{ display: "flex", gap: 4 }}>
-                                <button style={{ ...s.btn, padding: "3px 8px", fontSize: 11 }} onClick={() => setEditIdx(i)}>수정</button>
-                                <button style={{ ...s.btn, padding: "3px 8px", fontSize: 11, color: "var(--color-text-danger)" }} onClick={() => handleDelete(i)}>삭제</button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
+        <FormView onSubmit={handleSubmit} onPrint={(f, sc) => setPrintData({ f, sc })} submitting={submitting} />
       </div>
 
       {/* ── 오른쪽: 채점 기준표 ── */}
