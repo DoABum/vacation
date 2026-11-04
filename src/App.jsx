@@ -47,7 +47,7 @@ const GLOBAL_STYLE = `
 `;
 
 // Apps Script 배포 URL을 아래에 입력하세요
-const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx6jdLhhqRcnp34lbzVgEbPJtwo-ISihMQy09oyloCrlT5lbX3jbP40pWrROHBqUsPy/exec";
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz-VnuIoj1Du2mtBGtbel3q03cyJ7RrVrdJZE5gVmWiMGknw7nvNKzNfQipdiYzB5hb/exec";
 
 const suupOptions = [
   { label: "21시간 이상", value: 23.0 },
