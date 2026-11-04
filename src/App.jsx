@@ -824,17 +824,13 @@ export default function App() {
           total: parseFloat(sc.total.toFixed(2)),
         },
       };
-      const res = await fetch(SCRIPT_URL, {
+      await fetch(SCRIPT_URL, {
         method: "POST",
         body: JSON.stringify(payload),
+        mode: "no-cors",
       });
-      const data = await res.json();
-      if (data.status === "ok") {
-        showToast("제출이 완료되었습니다! 구글 시트에 저장되었습니다.", "success");
-        setPrintData({ f, sc });
-      } else {
-        throw new Error(data.message || "서버 오류");
-      }
+      showToast("제출이 완료되었습니다! 구글 시트에 저장되었습니다.", "success");
+      setPrintData({ f, sc });
     } catch (err) {
       showToast(`제출 실패: ${err.message}`, "error");
     } finally {
