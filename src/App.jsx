@@ -848,8 +848,8 @@ export default function App() {
 
         {toast.msg && (
           <div style={{
-            background: toast.type === "error" ? "#fee2e2" : "var(--color-background-success)",
-            color: toast.type === "error" ? "#dc2626" : "var(--color-text-success)",
+            background: toast.type === "error" ? "#fee2e2" : "#dcfce7",
+            color: toast.type === "error" ? "#dc2626" : "#15803d",
             borderRadius: "var(--border-radius-md)", padding: "10px 16px", fontSize: 14, marginBottom: "1rem"
           }}>
             {toast.msg}
