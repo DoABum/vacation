@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>장기재직자 휴가 캘린더</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', 'Apple SD Gothic Neo', sans-serif; background: #f0f2f5; min-height: 100vh; }
+
+    /* ── 헤더 ────────────────────── */
+    header {
+      background: linear-gradient(135deg, #1e3a5f, #2d6a9f);
+      color: white; padding: 15px 24px;
+      display: flex; align-items: center; justify-content: space-between;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    }
+    .h-left { display: flex; align-items: center; gap: 10px; }
+    .h-left .ico { font-size: 22px; }
+    header h1  { font-size: 18px; font-weight: 700; }
+    header .sub { font-size: 12px; opacity: .75; margin-top: 2px; }
+    .h-right { display: flex; align-items: center; gap: 8px; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: #4caf50; }
+    .dot.spin { background: #ffc107; }
+    .dot.err  { background: #f44336; }
+    #statusText { font-size: 12px; opacity: .9; }
+    .h-btn {
+      background: rgba(255,255,255,0.15);
+      border: 1px solid rgba(255,255,255,0.3);
+      color: white; padding: 4px 11px; border-radius: 16px;
+      font-size: 12px; cursor: pointer;
+    }
+    .h-btn:hover { background: rgba(255,255,255,0.28); }
+
+    /* ── 레이아웃 ────────────────── */
+    .wrap { display: flex; gap: 20px; padding: 18px 20px; max-width: 1380px; margin: 0 auto; }
+
+    /* ── 캘린더 ─────────────────── */
+    .cal-panel { flex: 1; display: flex; flex-direction: column; gap: 12px; }
+    .month-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .month-card { background: white; border-radius: 12px; padding: 13px; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+    .month-title { text-align: center; font-size: 14px; font-weight: 700; color: #1e3a5f; margin-bottom: 9px; padding-bottom: 8px; border-bottom: 2px solid #e8eef5; }
+    .day-hdrs { display: grid; grid-template-columns: repeat(7,1fr); margin-bottom: 3px; }
+    .day-hdr  { text-align: center; font-size: 11px; font-weight: 600; padding: 3px 0; color: #999; }
+    .day-hdr.sun { color: #e74c3c; }
+    .day-hdr.sat { color: #3498db; }
+    .days { display: grid; grid-template-columns: repeat(7,1fr); gap: 2px; }
+    .dc {
+      aspect-ratio: 1; display: flex; align-items: center; justify-content: center;
+      font-size: 12px; border-radius: 5px; cursor: pointer;
+      transition: all .12s; user-select: none; position: relative;
+    }
+    .dc:hover:not(.empty):not(.blocked) { background: #e8f0fe; transform: scale(1.1); }
+    .dc.empty   { cursor: default; }
+    .dc.sun     { color: #e74c3c; }
+    .dc.sat     { color: #3498db; }
+    .dc.today   { font-weight: 700; outline: 2px solid #2d6a9f; outline-offset: -2px; }
+    .dc.blocked { background: #f5f5f5 !important; color: #ccc !important; cursor: not-allowed; text-decoration: line-through; }
+
+    .dc.sel-s { background: #2d6a9f !important; color: white !important; font-weight: 700; }
+    .dc.in-r  { background: #cce0f5; color: #1e3a5f; border-radius: 0; }
+    .dc.r-s   { background: #2d6a9f !important; color: white !important; font-weight: 700; border-radius: 5px 0 0 5px; }
+    .dc.r-e   { background: #2d6a9f !important; color: white !important; font-weight: 700; border-radius: 0 5px 5px 0; }
+    .dc.r-1   { background: #2d6a9f !important; color: white !important; font-weight: 700; border-radius: 5px; }
+
+    .dc.v0 { background: #cce0f5; color: #1e3a5f; }
+    .dc.v1 { background: #d5f0e0; color: #1a5c3a; }
+    .dc.v2 { background: #fde8cc; color: #7a3b00; }
+    .dc.v3 { background: #e8d5f5; color: #4a1a7a; }
+    .dc.v4 { background: #ffd5d5; color: #7a1a1a; }
+    .dc.v0.r-s,.dc.v1.r-s,.dc.v2.r-s,.dc.v3.r-s,.dc.v4.r-s { border-radius: 5px 0 0 5px; }
+    .dc.v0.r-e,.dc.v1.r-e,.dc.v2.r-e,.dc.v3.r-e,.dc.v4.r-e { border-radius: 0 5px 5px 0; }
+    .dc.v0.r-1,.dc.v1.r-1,.dc.v2.r-1,.dc.v3.r-1,.dc.v4.r-1 { border-radius: 5px; }
+
+    .dc .tip {
+      display: none; position: absolute; bottom: calc(100% + 4px); left: 50%;
+      transform: translateX(-50%); background: #333; color: white;
+      font-size: 11px; white-space: nowrap; padding: 3px 7px;
+      border-radius: 5px; z-index: 50; pointer-events: none;
+    }
+    .dc:hover .tip { display: block; }
+
+    .hint {
+      background: white; border-radius: 10px; padding: 10px 14px;
+      font-size: 13px; color: #555; box-shadow: 0 1px 4px rgba(0,0,0,.07);
+      display: flex; align-items: center; gap: 8px;
+    }
+    .step { background: #2d6a9f; color: white; border-radius: 12px; padding: 2px 10px; font-size: 12px; font-weight: 600; }
+
+    /* ── 오른쪽 패널 ─────────────── */
+    .right { width: 305px; flex-shrink: 0; display: flex; flex-direction: column; gap: 12px; }
+    .card { background: white; border-radius: 12px; padding: 15px; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+    .ctitle { font-size: 14px; font-weight: 700; color: #1e3a5f; margin-bottom: 11px; display: flex; align-items: center; gap: 6px; }
+    .badge { background: #2d6a9f; color: white; border-radius: 10px; padding: 1px 8px; font-size: 12px; }
+
+    .stats { display: flex; gap: 8px; }
+    .sbox  { flex: 1; background: #f0f6ff; border-radius: 8px; padding: 10px; text-align: center; }
+    .snum  { font-size: 22px; font-weight: 700; color: #2d6a9f; }
+    .slbl  { font-size: 11px; color: #888; margin-top: 2px; }
+
+    .form  { display: flex; flex-direction: column; gap: 9px; }
+    .frow  { display: flex; align-items: center; gap: 7px; }
+    .frow label { font-size: 12px; color: #666; width: 32px; flex-shrink: 0; }
+    .ddisp {
+      flex: 1; border: 1.5px solid #dde3ea; border-radius: 6px;
+      padding: 6px 9px; font-size: 12px; color: #aaa;
+      background: #fafbfc; min-height: 31px;
+    }
+    .ddisp.on { border-color: #2d6a9f; background: #f0f6ff; color: #1e3a5f; font-weight: 600; }
+    .tinput {
+      width: 100%; border: 1.5px solid #dde3ea; border-radius: 6px;
+      padding: 6px 9px; font-size: 13px; color: #333; background: #fafbfc; outline: none;
+    }
+    .tinput:focus { border-color: #2d6a9f; background: #f0f6ff; }
+    .tinput.bad   { border-color: #e74c3c; background: #fff5f5; }
+    textarea.tinput { resize: none; height: 50px; }
+    .brow { display: flex; gap: 7px; margin-top: 2px; }
+    .btn  { flex: 1; padding: 8px; border: none; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all .15s; }
+    .btn-p { background: #2d6a9f; color: white; }
+    .btn-p:hover { background: #1e5080; }
+    .btn-p:disabled { background: #aac4de; cursor: not-allowed; }
+    .btn-s { background: #f0f2f5; color: #555; }
+    .btn-s:hover { background: #e0e3e8; }
+
+    .vlist { display: flex; flex-direction: column; gap: 7px; max-height: 400px; overflow-y: auto; }
+    .vlist:empty::after { content: '등록된 휴가가 없습니다.'; display: block; text-align: center; color: #bbb; font-size: 13px; padding: 18px 0; }
+    .vitem { border-radius: 8px; padding: 10px 11px; position: relative; border-left: 4px solid; }
+    .vitem.c0 { background: #eef6ff; border-color: #2d6a9f; }
+    .vitem.c1 { background: #eefbf3; border-color: #27ae60; }
+    .vitem.c2 { background: #fff8ee; border-color: #e67e22; }
+    .vitem.c3 { background: #f5eeff; border-color: #8e44ad; }
+    .vitem.c4 { background: #ffeeee; border-color: #e74c3c; }
+    .vn  { font-size: 13px; font-weight: 700; color: #222; margin-bottom: 3px; }
+    .vr  { font-size: 12px; color: #555; margin-bottom: 2px; }
+    .vd  { font-size: 11px; color: #888; }
+    .vm  { font-size: 11px; color: #777; margin-top: 3px; font-style: italic; }
+    .vts { font-size: 10px; color: #bbb; margin-top: 3px; }
+    .bdel {
+      position: absolute; top: 7px; right: 7px;
+      background: none; border: none; color: #ccc;
+      cursor: pointer; font-size: 13px; padding: 2px 4px;
+      border-radius: 4px; transition: all .15s;
+    }
+    .bdel:hover { background: #ffe0e0; color: #e74c3c; }
+
+    /* ── 연결 안 된 경우 안내 ──── */
+    .not-connected {
+      display: none; flex-direction: column; align-items: center; justify-content: center;
+      gap: 12px; padding: 40px 20px; text-align: center; color: #888;
+    }
+    .not-connected .big { font-size: 48px; }
+    .not-connected p { font-size: 14px; line-height: 1.7; }
+
+    /* ── 토스트 ───────────────────── */
+    #toast {
+      position: fixed; bottom: 24px; left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: #333; color: white;
+      padding: 10px 20px; border-radius: 24px;
+      font-size: 13px; transition: transform .3s;
+      z-index: 1000; pointer-events: none;
+    }
+    #toast.show { transform: translateX(-50%) translateY(0); }
+    #toast.ok  { background: #27ae60; }
+    #toast.err { background: #e74c3c; }
+  </style>
+</head>
+<body>
+
+<div id="toast"></div>
+
+<header>
+  <div class="h-left">
+    <span class="ico">🏖️</span>
+    <div>
+      <h1>장기재직자 휴가 캘린더</h1>
+      <div class="sub">2026년 8월 ~ 2027년 1월</div>
+    </div>
+  </div>
+  <div class="h-right">
+    <div class="dot" id="sDot"></div>
+    <span id="statusText">연결 중…</span>
+    <button class="h-btn" onclick="fetchData(true)">↻ 새로고침</button>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <div class="cal-panel">
+    <div class="hint" id="hintBar">
+      <span class="step" id="stepBadge">1단계</span>
+      <span id="hintText">캘린더에서 휴가 시작일을 클릭하세요.</span>
+    </div>
+    <div class="month-grid" id="monthGrid"></div>
+  </div>
+
+  <div class="right">
+
+    <div class="card">
+      <div class="stats">
+        <div class="sbox"><div class="snum" id="sCnt">0</div><div class="slbl">등록 건수</div></div>
+        <div class="sbox"><div class="snum" id="sDays">0</div><div class="slbl">총 평일 일수</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="ctitle">✏️ 휴가 등록</div>
+      <div class="form">
+        <div>
+          <label style="font-size:12px;color:#666;display:block;margin-bottom:4px;">성명 <span style="color:#e74c3c">*</span></label>
+          <input type="text" class="tinput" id="nameInput" placeholder="이름을 입력하세요" maxlength="20">
+        </div>
+        <div class="frow">
+          <label>시작</label>
+          <div class="ddisp" id="startDisp">날짜를 클릭하세요</div>
+        </div>
+        <div class="frow">
+          <label>종료</label>
+          <div class="ddisp" id="endDisp">날짜를 클릭하세요</div>
+        </div>
+        <div>
+          <label style="font-size:12px;color:#666;display:block;margin-bottom:4px;">메모 (선택)</label>
+          <textarea class="tinput" id="memoInput" placeholder="비고 사항"></textarea>
+        </div>
+        <div class="brow">
+          <button class="btn btn-s" onclick="resetSel()">초기화</button>
+          <button class="btn btn-p" id="addBtn" onclick="doAdd()" disabled>등록</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="ctitle">📋 휴가 목록 <span class="badge" id="listBadge">0</span></div>
+      <div class="vlist" id="vlist"></div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ================================================================
+//  ★ 관리자 설정: 아래 URL을 Apps Script 배포 URL로 교체하세요 ★
+// ================================================================
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzD6fxx8gtmlaXGBerym7_-lYppC6hUIsbp46uZt6jlEc_9Sn83INPzm8Dq3sp0gS6t/exec';
+// ================================================================
+
+const MONTHS = [
+  {y:2026,m:8},{y:2026,m:9},{y:2026,m:10},
+  {y:2026,m:11},{y:2026,m:12},{y:2027,m:1}
+];
+const MN  = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
+const DN  = ['일','월','화','수','목','금','토'];
+const today = toKey(new Date());
+
+let vacations = [];
+let blocked   = new Set();
+let selStart  = null;
+let selEnd    = null;
+let hover     = null;
+
+function pad(n)  { return String(n).padStart(2,'0'); }
+function toKey(d){ return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; }
+function toDate(k){ const [y,m,d]=k.split('-').map(Number); return new Date(y,m-1,d); }
+
+// 구글 스프레드시트가 날짜를 ISO 문자열로 바꾸는 문제 정규화
+function normDate(v){
+  if(!v) return '';
+  return String(v).substring(0,10); // "YYYY-MM-DD" or "YYYY-MM-DDT..." → 앞 10자리만
+}
+function kor(k){
+  if(!k) return '';
+  const [y,m,d]=k.split('-').map(Number);
+  return `${y}년 ${m}월 ${d}일`;
+}
+function workdays(s,e){
+  let n=0, c=toDate(s), end=toDate(e);
+  while(c<=end){const w=c.getDay();if(w&&w!==6)n++;c.setDate(c.getDate()+1);}
+  return n;
+}
+function totalDays(s,e){ return Math.round((toDate(e)-toDate(s))/86400000)+1; }
+function inR(d,s,e){ return d>=s&&d<=e; }
+function ci(id){ return Number(String(id).slice(-1)) % 5; }
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// ── API 연결 ──────────────────────────────────────────────
+function isConfigured() { return SCRIPT_URL !== 'APPS_SCRIPT_URL_HERE' && SCRIPT_URL.startsWith('https://'); }
+
+async function fetchData(manual=false) {
+  if (!isConfigured()) { setSt('err','미설정'); return; }
+  setSt('spin','불러오는 중…');
+  try {
+    const res  = await fetch(`${SCRIPT_URL}?action=list`);
+    const data = await res.json();
+    if (data.status !== 'ok') throw new Error(data.message || '서버 오류');
+    vacations = (data.vacations||[]).map(v=>({
+      ...v,
+      start: normDate(v.start),
+      end:   normDate(v.end)
+    }));
+    blocked = new Set(data.blocked||[]);
+    renderAll();
+    const now = new Date();
+    setSt('ok', `${pad(now.getHours())}:${pad(now.getMinutes())} 기준`);
+    if (manual) toast('새로고침 완료', 'ok');
+  } catch(e) {
+    setSt('err', '연결 오류');
+    if (manual) toast('연결에 실패했습니다. 잠시 후 다시 시도해주세요.', 'err');
+  }
+}
+
+async function doAdd() {
+  const ni   = document.getElementById('nameInput');
+  const name = ni.value.trim();
+  if (!name) { ni.classList.add('bad'); ni.placeholder='이름을 입력해주세요!'; ni.focus(); return; }
+  ni.classList.remove('bad');
+  if (!selStart || !selEnd) return;
+
+  // 날짜 겹침 검사
+  const overlap = vacations.filter(v => selStart <= v.end && selEnd >= v.start);
+  if (overlap.length > 0) {
+    const names = overlap.map(v=>v.name).join(', ');
+    const msg =
+      `⚠️ [${names}] 선생님과 기간이 겹칩니다.\n\n` +
+      `같은 기간에는 한 명만 장기재직휴가를 사용할 수 있습니다.\n` +
+      `다음 순위대로 휴가 사용이 결정됩니다.\n\n` +
+      `① 1순위: 장기재직휴가 소멸 기한 도래 교원 (잔여기간 적은 순)\n` +
+      `② 2순위: 교직 경력이 높은 교원\n` +
+      `③ 3순위: 장기재직휴가 최초 사용 교원\n` +
+      `④ 4순위: 생년월일이 빠른 교원\n\n` +
+      `그래도 등록하시겠습니까?`;
+    if (!confirm(msg)) return;
+  }
+
+  const memo = document.getElementById('memoInput').value.trim();
+  const btn  = document.getElementById('addBtn');
+  btn.disabled=true; btn.textContent='저장 중…';
+  try {
+    const params = new URLSearchParams({action:'add', name, start:selStart, end:selEnd, memo});
+    const res  = await fetch(`${SCRIPT_URL}?${params}`);
+    const data = await res.json();
+    if (data.status !== 'ok') throw new Error(data.message || '저장 오류');
+    toast(`${esc(name)} 선생님 휴가가 등록되었습니다.`, 'ok');
+    resetSel();
+    await fetchData();
+  } catch(e) {
+    toast('등록에 실패했습니다. 다시 시도해주세요.', 'err');
+    btn.disabled=false; btn.textContent='등록';
+  }
+}
+
+async function doDel(id, name) {
+  if (!confirm(`"${name}" 선생님의 휴가를 삭제하시겠습니까?`)) return;
+  setSt('spin','삭제 중…');
+  try {
+    const res = await fetch(`${SCRIPT_URL}?action=delete&id=${id}`);
+    await res.json();
+    toast('삭제되었습니다.', 'ok');
+    await fetchData();
+  } catch(e) {
+    toast('삭제에 실패했습니다.', 'err');
+    setSt('err','오류');
+  }
+}
+
+// ── 캘린더 렌더링 ─────────────────────────────────────────
+function renderAll() {
+  const g = document.getElementById('monthGrid');
+  g.innerHTML = '';
+  MONTHS.forEach(({y,m})=>g.appendChild(buildMonth(y,m)));
+  renderList();
+  updateStats();
+}
+
+function buildMonth(year, month) {
+  const card = document.createElement('div'); card.className='month-card';
+  const title= document.createElement('div'); title.className='month-title';
+  title.textContent=`${year}년 ${MN[month-1]}`; card.appendChild(title);
+  const hdrs = document.createElement('div'); hdrs.className='day-hdrs';
+  DN.forEach((n,i)=>{ const h=document.createElement('div'); h.className='day-hdr'+(i===0?' sun':i===6?' sat':''); h.textContent=n; hdrs.appendChild(h); });
+  card.appendChild(hdrs);
+  const dg = document.createElement('div'); dg.className='days';
+  const fd = new Date(year,month-1,1).getDay();
+  const dm = new Date(year,month,0).getDate();
+  for(let i=0;i<fd;i++){const e=document.createElement('div');e.className='dc empty';dg.appendChild(e);}
+  for(let d=1;d<=dm;d++){
+    const key=`${year}-${pad(month)}-${pad(d)}`;
+    const dow=new Date(year,month-1,d).getDay();
+    const cell=document.createElement('div');
+    cell.textContent=d; cell.dataset.key=key;
+    const cls=['dc'];
+    if(dow===0)cls.push('sun'); if(dow===6)cls.push('sat');
+    if(key===today)cls.push('today');
+    if(blocked.has(key)){
+      cls.push('blocked');
+    }else{
+      styleCell(cls,cell,key);
+    }
+    cell.className=cls.join(' ');
+    dg.appendChild(cell);
+  }
+  card.appendChild(dg); return card;
+}
+
+function styleCell(cls,cell,key){
+  for(const v of vacations){
+    if(!inR(key,v.start,v.end))continue;
+    cls.push(`v${ci(v.id)}`);
+    markR(cls,key,v.start,v.end);
+    const tip=document.createElement('div'); tip.className='tip'; tip.textContent=v.name; cell.appendChild(tip);
+    return;
+  }
+  const eff=(selStart&&!selEnd&&hover)?hover:selEnd;
+  if(selStart&&eff){
+    const s=selStart<=eff?selStart:eff, e=selStart<=eff?eff:selStart;
+    if(inR(key,s,e)){
+      if(key===s&&key===e)cls.push('r-1','sel-s');
+      else if(key===s)cls.push('r-s','sel-s');
+      else if(key===e)cls.push('r-e','sel-s');
+      else cls.push('in-r');
+    }
+  }else if(selStart&&key===selStart){cls.push('sel-s');}
+}
+
+function markR(cls,key,s,e){
+  if(s===e)cls.push('r-1');
+  else if(key===s)cls.push('r-s');
+  else if(key===e)cls.push('r-e');
+  else cls.push('in-r');
+}
+
+// hover 미리보기: DOM 재구성 없이 클래스만 업데이트
+function updateHover(){
+  document.querySelectorAll('.dc[data-key]').forEach(cell=>{
+    const k=cell.dataset.key;
+    if(cell.classList.contains('blocked'))return;
+    if(vacations.some(v=>inR(k,v.start,v.end)))return;
+    cell.classList.remove('sel-s','in-r','r-s','r-e','r-1');
+    const eff=(selStart&&!selEnd&&hover)?hover:selEnd;
+    if(selStart&&eff){
+      const s=selStart<=eff?selStart:eff, e=selStart<=eff?eff:selStart;
+      if(inR(k,s,e)){
+        if(k===s&&k===e)cell.classList.add('r-1','sel-s');
+        else if(k===s)cell.classList.add('r-s','sel-s');
+        else if(k===e)cell.classList.add('r-e','sel-s');
+        else cell.classList.add('in-r');
+        return;
+      }
+    }
+    if(selStart&&k===selStart)cell.classList.add('sel-s');
+  });
+}
+
+function onDay(key){
+  if(blocked.has(key))return;
+  if(!selStart){selStart=key;selEnd=null;hover=null;setHint(2,'종료일을 클릭하세요.');}
+  else if(!selEnd){if(key<selStart){selEnd=selStart;selStart=key;}else selEnd=key;hover=null;setHint(3,'성명 확인 후 [등록]을 누르세요.');}
+  else{selStart=key;selEnd=null;hover=null;setHint(2,'종료일을 클릭하세요.');}
+  updateForm(); renderAll();
+}
+
+function setHint(n,t){ document.getElementById('stepBadge').textContent=`${n}단계`; document.getElementById('hintText').textContent=t; }
+function updateForm(){
+  const sd=document.getElementById('startDisp'),ed=document.getElementById('endDisp'),btn=document.getElementById('addBtn');
+  if(selStart){sd.textContent=kor(selStart);sd.classList.add('on');}else{sd.textContent='날짜를 클릭하세요';sd.classList.remove('on');}
+  if(selEnd){ed.textContent=kor(selEnd);ed.classList.add('on');}else if(selStart){ed.textContent='종료일 선택 중…';ed.classList.add('on');}else{ed.textContent='날짜를 클릭하세요';ed.classList.remove('on');}
+  btn.disabled=!(selStart&&selEnd); btn.textContent='등록';
+}
+function resetSel(){
+  selStart=null;selEnd=null;hover=null;
+  document.getElementById('nameInput').value='';
+  document.getElementById('nameInput').classList.remove('bad');
+  document.getElementById('nameInput').placeholder='이름을 입력하세요';
+  document.getElementById('memoInput').value='';
+  setHint(1,'캘린더에서 휴가 시작일을 클릭하세요.');
+  updateForm(); renderAll();
+}
+
+function renderList(){
+  const l=document.getElementById('vlist');
+  document.getElementById('listBadge').textContent=vacations.length;
+  l.innerHTML='';
+  [...vacations].reverse().forEach(v=>{
+    const item=document.createElement('div');
+    item.className=`vitem c${ci(v.id)}`;
+    item.innerHTML=`
+      <div class="vn">${esc(v.name)}</div>
+      <div class="vr">📅 ${kor(v.start)} ~ ${kor(v.end)}</div>
+      <div class="vd">총 ${totalDays(v.start,v.end)}일 (평일 ${workdays(v.start,v.end)}일)</div>
+      ${v.memo?`<div class="vm">💬 ${esc(v.memo)}</div>`:''}
+      <div class="vts">등록: ${v.ts}</div>`;
+    l.appendChild(item);
+  });
+}
+function updateStats(){
+  document.getElementById('sCnt').textContent=vacations.length;
+  document.getElementById('sDays').textContent=vacations.reduce((s,v)=>s+workdays(v.start,v.end),0);
+}
+
+function setSt(state,msg){ document.getElementById('sDot').className='dot '+state; document.getElementById('statusText').textContent=msg; }
+let _t;
+function toast(msg,type=''){ const el=document.getElementById('toast'); el.textContent=msg; el.className='show '+(type||''); clearTimeout(_t); _t=setTimeout(()=>el.className='',3200); }
+
+// ── 이벤트 위임: monthGrid 하나에서 모든 클릭·호버 처리 ──
+function initEvents(){
+  const grid=document.getElementById('monthGrid');
+
+  // 클릭 — renderAll()로 재구성된 셀에도 항상 동작
+  grid.addEventListener('click',e=>{
+    const cell=e.target.closest('.dc[data-key]');
+    if(!cell||cell.classList.contains('blocked')||cell.classList.contains('empty'))return;
+    onDay(cell.dataset.key);
+  });
+
+  // 마우스 이동 — 셀이 바뀔 때만 updateHover() 호출
+  grid.addEventListener('mouseover',e=>{
+    if(!selStart||selEnd)return;
+    const cell=e.target.closest('.dc[data-key]');
+    const nk=(cell&&!cell.classList.contains('blocked')&&!cell.classList.contains('empty'))
+      ?cell.dataset.key:null;
+    if(nk!==hover){hover=nk;updateHover();}
+  });
+
+  // 그리드 밖으로 나가면 hover 초기화
+  grid.addEventListener('mouseleave',()=>{
+    if(hover){hover=null;updateHover();}
+  });
+}
+
+// ── 자동 새로고침 60초 ──
+setInterval(()=>fetchData(),60000);
+
+// ── 초기 실행 ──
+renderAll();
+updateForm();
+fetchData();
+initEvents(); // 이벤트 위임 1회 등록
+</script>
+</body>
+</html>
